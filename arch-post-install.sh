@@ -30,7 +30,7 @@ virt="$(systemd-detect-virt || true)"
 case "$virt" in
   kvm|qemu)
     log "Detected $virt → installing SPICE & QEMU guest agents"
-    need_pkg spice-vdagent qemu-guest-agent spice-webdavd
+    need_pkg spice-vdagent qemu-guest-agent
     sudo systemctl enable --now qemu-guest-agent.service || true
     ;;
   oracle)
