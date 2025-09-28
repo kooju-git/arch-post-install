@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ---- Config ----
+# --- config ---
 KEY_EMAIL="kooju-git@kooju-labs.org"
 KEY_PATH="$HOME/.ssh/id_ed25519"
 PUB_PATH="${KEY_PATH}.pub"
 
-# ---- Helpers ----
-log() { printf '\033[1;32m[info]\033[0m %s\n' "$*"; }
+log()  { printf '\033[1;32m[info]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
 
 need_pkg() {
@@ -20,88 +19,47 @@ need_pkg() {
   fi
 }
 
-# ---- 0) Update base + essential tools ----
-log "Updating system and installing base tools..."
+# 1) tools
 sudo pacman -Syu --noconfirm
-need_pkg git stow openssh xclip wl-clipboard qrencode
+need_pkg openssh stow qrencode xclip wl-clipboard
 
-# ---- 1) VM detection & guest additions ----
-virt="$(systemd-detect-virt || true)"
-case "$virt" in
-  kvm|qemu)
-    log "Detected $virt → installing SPICE & QEMU guest agents"
-    need_pkg spice-vdagent qemu-guest-agent
-    sudo systemctl enable --now qemu-guest-agent.service || true
-    ;;
-  oracle)
-    log "Detected VirtualBox → installing guest utils"
-    need_pkg virtualbox-guest-utils virtualbox-guest-modules-arch
-    sudo systemctl enable --now vboxservice.service || true
-    ;;
-  vmware)
-    log "Detected VMware → installing open-vm-tools"
-    need_pkg open-vm-tools
-    sudo systemctl enable --now vmtoolsd.service || true
-    sudo systemctl enable --now vmware-vmblock-fuse.service || true
-    ;;
-  microsoft)
-    log "Detected Hyper-V → installing hyperv guest bits"
-    need_pkg hyperv
-    ;;
-  none|"")
-    log "Bare metal or unknown hypervisor → skipping guest additions"
-    ;;
-  *)
-    warn "Unrecognized virt: $virt → skipping guest additions"
-    ;;
-esac
-
-# ---- 2) SSH keypair ----
-mkdir -p "$HOME/.ssh"
-chmod 700 "$HOME/.ssh"
-
+# 2) ssh key (prompt for passphrase)
+mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"
 if [[ ! -f "$KEY_PATH" ]]; then
-  log "Generating Ed25519 SSH key (you will be prompted for a passphrase)..."
+  log "Generating Ed25519 SSH key (you will be prompted for a passphrase)…"
   ssh-keygen -t ed25519 -C "$KEY_EMAIL" -f "$KEY_PATH"
-  chmod 600 "$KEY_PATH"
-  chmod 644 "$PUB_PATH"
+  chmod 600 "$KEY_PATH"; chmod 644 "$PUB_PATH"
 else
   log "SSH key already exists at $KEY_PATH (skipping generation)"
 fi
 
-# ---- 3) Start agent & add key ----
+# 3) agent + add
 if ! pgrep -u "$USER" ssh-agent >/dev/null 2>&1; then
   eval "$(ssh-agent -s)"
 fi
-
-log "Adding key to ssh-agent (you may be prompted for passphrase once)..."
 ssh-add "$KEY_PATH" || true
 
-# ---- 4) Clipboard + QR ----
+# 4) clipboard + QR
 copied=false
 if [[ "${XDG_SESSION_TYPE:-}" == "wayland" || -n "${WAYLAND_DISPLAY:-}" ]]; then
-  if command -v wl-copy >/dev/null 2>&1; then
-    wl-copy < "$PUB_PATH" && copied=true
-  fi
+  command -v wl-copy >/dev/null && wl-copy < "$PUB_PATH" && copied=true
 elif [[ -n "${DISPLAY:-}" ]]; then
-  if command -v xclip >/dev/null 2>&1; then
-    xclip -selection clipboard < "$PUB_PATH" && copied=true
-  fi
+  command -v xclip   >/dev/null && xclip -selection clipboard < "$PUB_PATH" && copied=true
 fi
 
 echo
 if $copied; then
-  log "Your PUBLIC key is in the clipboard."
+  log "Public key copied to clipboard."
 else
-  warn "Could not copy to clipboard (no GUI clipboard detected)."
+  warn "No GUI clipboard detected; copy manually from below."
 fi
 
-log "Public key (for manual copy if needed):"
+log "Public key:"
 cat "$PUB_PATH"
 echo
 
-log "QR code (scan with your phone to copy):"
-qrencode -t ansiutf8 < "$PUB_PATH" || warn "qrencode failed (is your terminal too small?)"
+log "QR code (scan with your phone):"
+qrencode -t ansiutf8 < "$PUB_PATH" || warn "qrencode failed (try enlarging the terminal)"
 echo
 
 log "After adding your key to GitHub, test with: ssh -T git@github.com"
