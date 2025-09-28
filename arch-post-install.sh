@@ -1,60 +1,107 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-KEY="$HOME/.ssh/id_ed25519"
-PUB="$KEY.pub"
-GITHUB_KEYS_URL="https://github.com/settings/keys"
+# ---- Config ----
+KEY_EMAIL="kooju-git@kooju-labs.org"
+KEY_PATH="$HOME/.ssh/id_ed25519"
+PUB_PATH="${KEY_PATH}.pub"
 
-# 1) Tools (Firefox + clipboard utils + git/stow/openssh)
-sudo pacman -Syu --noconfirm \
-  git stow openssh firefox xclip wl-clipboard xdg-utils
+# ---- Helpers ----
+log() { printf '\033[1;32m[info]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
 
-# 2) Ensure ~/.ssh perms
+need_pkg() {
+  local missing=()
+  for p in "$@"; do
+    pacman -Qi "$p" &>/dev/null || missing+=("$p")
+  done
+  if ((${#missing[@]})); then
+    sudo pacman -S --noconfirm "${missing[@]}"
+  fi
+}
+
+# ---- 0) Update base + essential tools ----
+log "Updating system and installing base tools..."
+sudo pacman -Syu --noconfirm
+need_pkg git stow openssh xclip wl-clipboard qrencode
+
+# ---- 1) VM detection & guest additions ----
+virt="$(systemd-detect-virt || true)"
+case "$virt" in
+  kvm|qemu)
+    log "Detected $virt → installing SPICE & QEMU guest agents"
+    need_pkg spice-vdagent qemu-guest-agent spice-webdavd
+    sudo systemctl enable --now qemu-guest-agent.service || true
+    ;;
+  oracle)
+    log "Detected VirtualBox → installing guest utils"
+    need_pkg virtualbox-guest-utils virtualbox-guest-modules-arch
+    sudo systemctl enable --now vboxservice.service || true
+    ;;
+  vmware)
+    log "Detected VMware → installing open-vm-tools"
+    need_pkg open-vm-tools
+    sudo systemctl enable --now vmtoolsd.service || true
+    sudo systemctl enable --now vmware-vmblock-fuse.service || true
+    ;;
+  microsoft)
+    log "Detected Hyper-V → installing hyperv guest bits"
+    need_pkg hyperv
+    ;;
+  none|"")
+    log "Bare metal or unknown hypervisor → skipping guest additions"
+    ;;
+  *)
+    warn "Unrecognized virt: $virt → skipping guest additions"
+    ;;
+esac
+
+# ---- 2) SSH keypair ----
 mkdir -p "$HOME/.ssh"
 chmod 700 "$HOME/.ssh"
 
-# 3) Generate SSH key if missing (PROMPTS for passphrase)
-if [[ ! -f "$KEY" ]]; then
-  ssh-keygen -t ed25519 -C "kooju-git@kooju-labs.org" -f "$KEY"
-  chmod 600 "$KEY"
-  chmod 644 "$PUB"
+if [[ ! -f "$KEY_PATH" ]]; then
+  log "Generating Ed25519 SSH key (you will be prompted for a passphrase)..."
+  ssh-keygen -t ed25519 -C "$KEY_EMAIL" -f "$KEY_PATH"
+  chmod 600 "$KEY_PATH"
+  chmod 644 "$PUB_PATH"
 else
-  echo "SSH key already exists at: $KEY (skipping generation)"
+  log "SSH key already exists at $KEY_PATH (skipping generation)"
 fi
 
-# 4) Start agent & add key (will prompt passphrase once)
-eval "$(ssh-agent -s)"
-ssh-add "$KEY"
+# ---- 3) Start agent & add key ----
+if ! pgrep -u "$USER" ssh-agent >/dev/null 2>&1; then
+  eval "$(ssh-agent -s)"
+fi
 
-# 5) Copy public key to clipboard (Wayland or X11) if a GUI session is present
-copy_ok=false
+log "Adding key to ssh-agent (you may be prompted for passphrase once)..."
+ssh-add "$KEY_PATH" || true
+
+# ---- 4) Clipboard + QR ----
+copied=false
 if [[ "${XDG_SESSION_TYPE:-}" == "wayland" || -n "${WAYLAND_DISPLAY:-}" ]]; then
   if command -v wl-copy >/dev/null 2>&1; then
-    wl-copy < "$PUB" && copy_ok=true
+    wl-copy < "$PUB_PATH" && copied=true
   fi
 elif [[ -n "${DISPLAY:-}" ]]; then
   if command -v xclip >/dev/null 2>&1; then
-    xclip -selection clipboard < "$PUB" && copy_ok=true
+    xclip -selection clipboard < "$PUB_PATH" && copied=true
   fi
 fi
 
 echo
-if $copy_ok; then
-  echo "✅ Your PUBLIC key has been copied to the clipboard."
+if $copied; then
+  log "Your PUBLIC key is in the clipboard."
 else
-  echo "⚠️ Could not detect a GUI clipboard. Showing the key below; copy it manually:"
-  echo
-  cat "$PUB"
-  echo
+  warn "Could not copy to clipboard (no GUI clipboard detected)."
 fi
 
-# 6) Open GitHub SSH keys page in Firefox (in background if GUI available)
-if command -v firefox >/dev/null 2>&1 && { [[ -n "${DISPLAY:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]]; }; then
-  nohup firefox --new-window "$GITHUB_KEYS_URL" >/dev/null 2>&1 &
-  echo "🌐 Opening GitHub SSH keys page in Firefox..."
-else
-  echo "🔗 Open this URL to add your key: $GITHUB_KEYS_URL"
-fi
-
+log "Public key (for manual copy if needed):"
+cat "$PUB_PATH"
 echo
-echo "Tip: after adding the key, test with:  ssh -T git@github.com"
+
+log "QR code (scan with your phone to copy):"
+qrencode -t ansiutf8 < "$PUB_PATH" || warn "qrencode failed (is your terminal too small?)"
+echo
+
+log "After adding your key to GitHub, test with: ssh -T git@github.com"
