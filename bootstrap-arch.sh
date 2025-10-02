@@ -5,7 +5,6 @@ set -euo pipefail
 # Past pacman.conf veilig aan binnen [options] en schakelt multilib in.
 # => Zorgt dat /etc/pacman.conf eindigt met root:root en mode 644.
 # Installeert micro-code updates
-# Installeert en enabled preload
 # Installeert basis packages
 
 YAY_REPO="https://aur.archlinux.org/yay.git"
@@ -110,13 +109,13 @@ pacman -Syu --noconfirm
 pacman -S intel-ucode --noconfirm
 grub-mkconfig -o /boot/grub/grub.cfg
 
-# --- preload ---
-yay -S preload --noconfirm
-systemctl enable preload
-systemctl start preload
-
 # --- basis packages ---
-pacman -S --needed --noconfirm linux-lts linux-lts-headers fastfetch alacritty vi nano stow bash-completion brave
+pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion gnu-free-fonts noto-fonts ttf-jetbrains-mono
+
+# --- kde ---
+pacman -S --needed --noconfirm plasma-meta kde-applications
+systemctl enable sddm.service
+systemctl start sddm.service
 
 echo
 log "Klaar."
