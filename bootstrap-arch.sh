@@ -2,15 +2,13 @@
 set -euo pipefail
 
 # --- self-delete als het script succesvol eindigt ---
-SELF="${BASH_SOURCE[0]:-$0}"
-trap 'status=$?;
-      if (( status == 0 )) && [[ -f "$SELF" && -w "$SELF" && -O "$SELF" ]]; then
-        rm -f -- "$SELF"
-      fi' EXIT
+# SELF="${BASH_SOURCE[0]:-$0}"
+# trap 'status=$?;
+#       if (( status == 0 )) && [[ -f "$SELF" && -w "$SELF" && -O "$SELF" ]]; then
+#         rm -f -- "$SELF"
+#       fi' EXIT
 
 # Installeert: reflector, rsync, yay (from source)
-# Past pacman.conf veilig aan binnen [options] en schakelt multilib in.
-# => Zorgt dat /etc/pacman.conf eindigt met root:root en mode 644.
 # Installeert micro-code updates
 # Installeert basis packages
 # Installeert KDE
@@ -66,49 +64,6 @@ fi
 # --- pacman.conf backup ---
 log "Backup van pacman.conf -> $BACKUP"
 cp -a "$PACCONF" "$BACKUP"
-
-# --- [options] sectie veilig normaliseren ---
-tmp="$(mktemp)"
-awk '
-  BEGIN{inopt=0; haveColor=0; havePar=0; haveCandy=0}
-  /^\[.*\]$/{
-    if(inopt){
-      if(!haveColor)  print "Color"
-      if(!havePar)    print "ParallelDownloads = 5"
-      if(!haveCandy)  print "ILoveCandy"
-    }
-    print
-    inopt = ($0=="[options]")
-    next
-  }
-  {
-    if(inopt){
-      if($0 ~ /^[[:space:]]*#?[[:space:]]*Color([[:space:]]|$)/){ if(!haveColor){ print "Color"; haveColor=1 }; next }
-      if($0 ~ /^[[:space:]]*#?[[:space:]]*ParallelDownloads[[:space:]]*=/){ print "ParallelDownloads = 5"; havePar=1; next }
-      if($0 ~ /^[[:space:]]*ILoveCandy([[:space:]]|$)/){ haveCandy=1 }
-    }
-    print
-  }
-  END{
-    if(inopt){
-      if(!haveColor)  print "Color"
-      if(!havePar)    print "ParallelDownloads = 5"
-      if(!haveCandy)  print "ILoveCandy"
-    }
-  }
-' "$PACCONF" > "$tmp"
-
-# Plaats met correcte perms (root:root, 644)
-install -m 644 -o root -g root "$tmp" "$PACCONF"
-rm -f "$tmp"
-
-# --- multilib inschakelen binnen eigen sectie ---
-sed -i -E 's/^[#[:space:]]*\[multilib\]/[multilib]/' "$PACCONF"
-sed -i -E '/^\[multilib\]/,/^\[/{s|^[#[:space:]]*Include *= */etc/pacman.d/mirrorlist|Include = /etc/pacman.d/mirrorlist|}' "$PACCONF"
-
-# verzeker juiste perms (mocht sed iets aangepast hebben)
-chown root:root "$PACCONF"
-chmod 644 "$PACCONF"
 
 # --- resync ---
 log "Systeem opnieuw synchroniseren na pacman.conf/mirrorlist wijzigingen…"
