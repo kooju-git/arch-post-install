@@ -116,7 +116,7 @@ systemctl enable preload
 systemctl start preload
 
 # --- basis packages ---
-pacman -S --needed --noconfirm linux-lts linux-lts-headers fastfetch alacritty vi nano stow bash-completion
+pacman -S --needed --noconfirm linux-lts linux-lts-headers fastfetch alacritty vi nano stow bash-completion brave
 
 echo
 log "Klaar."
