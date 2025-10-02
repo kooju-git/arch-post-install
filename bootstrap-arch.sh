@@ -74,7 +74,7 @@ pacman -S intel-ucode --noconfirm
 grub-mkconfig -o /boot/grub/grub.cfg
 
 # --- basis packages ---
-pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion gnu-free-fonts noto-fonts ttf-jetbrains-mono firefox
+pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion gnu-free-fonts noto-fonts ttf-jetbrains-mono firefox htop ntfs-3g dosfstools
 
 # --- kde ---
 pacman -S --needed --noconfirm plasma-meta kde-applications
