@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- self-delete als het script succesvol eindigt ---
+SELF="${BASH_SOURCE[0]:-$0}"
+trap 'status=$?;
+      if (( status == 0 )) && [[ -f "$SELF" && -w "$SELF" && -O "$SELF" ]]; then
+        rm -f -- "$SELF"
+      fi' EXIT
+
 # Installeert: reflector, rsync, yay (from source)
 # Past pacman.conf veilig aan binnen [options] en schakelt multilib in.
 # => Zorgt dat /etc/pacman.conf eindigt met root:root en mode 644.
