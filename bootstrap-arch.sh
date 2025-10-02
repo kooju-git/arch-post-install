@@ -79,7 +79,6 @@ pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion 
 # --- kde ---
 pacman -S --needed --noconfirm plasma-meta kde-applications
 systemctl enable sddm.service
-systemctl start sddm.service
 
 # --- ssh script ---
 curl -L -o bootstrap-ssh.sh https://raw.githubusercontent.com/kooju-git/arch-post-install/main/bootstrap-ssh.sh
