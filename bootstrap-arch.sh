@@ -6,6 +6,8 @@ set -euo pipefail
 # => Zorgt dat /etc/pacman.conf eindigt met root:root en mode 644.
 # Installeert micro-code updates
 # Installeert basis packages
+# Installeert KDE
+# Haalt bootstrap-ssh.sh script op
 
 YAY_REPO="https://aur.archlinux.org/yay.git"
 PACCONF="/etc/pacman.conf"
@@ -110,12 +112,15 @@ pacman -S intel-ucode --noconfirm
 grub-mkconfig -o /boot/grub/grub.cfg
 
 # --- basis packages ---
-pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion gnu-free-fonts noto-fonts ttf-jetbrains-mono
+pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion gnu-free-fonts noto-fonts ttf-jetbrains-mono firefox
 
 # --- kde ---
 pacman -S --needed --noconfirm plasma-meta kde-applications
 systemctl enable sddm.service
 systemctl start sddm.service
 
+# --- ssh script ---
+curl -L -o bootstrap-ssh.sh https://raw.githubusercontent.com/kooju-git/arch-post-install/main/bootstrap-ssh.sh
+
 echo
-log "Klaar."
+log "Klaar. Gelieve te rebooten."
