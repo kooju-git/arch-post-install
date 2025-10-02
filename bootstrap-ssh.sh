@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # --- self-delete als het script succesvol eindigt ---
-SELF="${BASH_SOURCE[0]:-$0}"
-trap 'status=$?;
-      if (( status == 0 )) && [[ -f "$SELF" && -w "$SELF" && -O "$SELF" ]]; then
-        rm -f -- "$SELF"
-      fi' EXIT
+# SELF="${BASH_SOURCE[0]:-$0}"
+# trap 'status=$?;
+#       if (( status == 0 )) && [[ -f "$SELF" && -w "$SELF" && -O "$SELF" ]]; then
+#         rm -f -- "$SELF"
+#       fi' EXIT
 
 # --- config ---
 KEY_EMAIL="kooju-git@kooju-labs.org"
