@@ -102,6 +102,9 @@ pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion 
 
 # --- kde ---
 pacman -S --needed --noconfirm plasma-meta kde-applications
+
+sudo mkdir -p /etc/sddm.conf.d
+printf "[General]\nNumlock=on\n" | sudo tee /etc/sddm.conf.d/10-numlock.conf
 systemctl enable sddm.service
 
 # --- ssh script ---
