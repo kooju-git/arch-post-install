@@ -10,6 +10,7 @@ set -euo pipefail
 
 # Installeert: reflector, rsync, yay (from source)
 # Installeert micro-code updates
+# Zet locale
 # Installeert basis packages
 # Installeert KDE
 # Haalt bootstrap-ssh.sh script op
@@ -17,6 +18,8 @@ set -euo pipefail
 YAY_REPO="https://aur.archlinux.org/yay.git"
 PACCONF="/etc/pacman.conf"
 BACKUP="/etc/pacman.conf.$(date +%Y%m%d-%H%M%S).bak"
+need_locale_en="en_US.UTF-8"
+need_locale_be="nl_BE.UTF-8"
 
 log()  { printf '\033[1;32m[info]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
@@ -72,6 +75,27 @@ pacman -Syu --noconfirm
 # --- microcode updates ---
 pacman -S intel-ucode --noconfirm
 grub-mkconfig -o /boot/grub/grub.cfg
+
+# 1) Zorg dat locales gegenereerd worden
+sed -i -E "s/^#\s*(${need_locale_en//./\\.}\s+UTF-8)/\1/" /etc/locale.gen
+sed -i -E "s/^#\s*(${need_locale_be//./\\.}\s+UTF-8)/\1/" /etc/locale.gen
+locale-gen
+
+# 2) Schrijf systeemlocale: Engels voor taal/berichten, Belgisch-Nederlands voor alles anders
+localectl set-locale \
+  LANG=${need_locale_en} \
+  LC_MESSAGES=${need_locale_en} \
+  LC_NUMERIC=${need_locale_be} \
+  LC_TIME=${need_locale_be} \
+  LC_MONETARY=${need_locale_be} \
+  LC_PAPER=${need_locale_be} \
+  LC_NAME=${need_locale_be} \
+  LC_ADDRESS=${need_locale_be} \
+  LC_TELEPHONE=${need_locale_be} \
+  LC_MEASUREMENT=${need_locale_be} \
+  LC_IDENTIFICATION=${need_locale_be} \
+  LC_COLLATE=${need_locale_be} \
+  LC_CTYPE=${need_locale_be}
 
 # --- basis packages ---
 pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion gnu-free-fonts noto-fonts ttf-jetbrains-mono htop ntfs-3g dosfstools man
