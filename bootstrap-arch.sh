@@ -13,7 +13,6 @@ set -euo pipefail
 # Zet locale
 # Installeert basis packages
 # Installeert KDE
-# Haalt bootstrap-ssh.sh script op
 
 YAY_REPO="https://aur.archlinux.org/yay.git"
 PACCONF="/etc/pacman.conf"
@@ -106,9 +105,6 @@ pacman -S --needed --noconfirm plasma-meta kde-applications
 sudo mkdir -p /etc/sddm.conf.d
 printf "[General]\nNumlock=on\n" | sudo tee /etc/sddm.conf.d/10-numlock.conf
 systemctl enable sddm.service
-
-# --- ssh script ---
-curl -L -o bootstrap-ssh.sh https://raw.githubusercontent.com/kooju-git/arch-post-install/main/bootstrap-ssh.sh
 
 echo
 log "Klaar. Gelieve te rebooten."
