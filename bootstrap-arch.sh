@@ -97,7 +97,7 @@ localectl set-locale \
   LC_CTYPE=${need_locale_be}
 
 # --- basis packages ---
-pacman -S --needed --noconfirm fastfetch alacritty vi nano stow bash-completion gnu-free-fonts noto-fonts ttf-jetbrains-mono htop ntfs-3g dosfstools man usbutils numlockx
+pacman -S --needed --noconfirm numlockx
 
 # --- kde ---
 pacman -S --needed --noconfirm plasma-meta kde-applications
