@@ -79,7 +79,7 @@ localectl set-locale \
   LC_CTYPE=${need_locale_be}
 
 # --- basis packages ---
-pacman -S --needed --noconfirm numlockx driverctl vi
+pacman -S --needed --noconfirm numlockx vi
 
 # --- kde ---
 pacman -S --needed --noconfirm plasma-meta kde-applications
