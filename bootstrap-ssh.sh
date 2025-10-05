@@ -28,7 +28,7 @@ need_pkg() {
 
 # 1) tools
 sudo pacman -Syu --noconfirm
-need_pkg openssh stow qrencode xclip wl-clipboard
+need_pkg openssh qrencode xclip wl-clipboard
 
 # 2) ssh key (prompt for passphrase)
 mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"
