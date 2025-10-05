@@ -8,13 +8,12 @@ set -euo pipefail
 #         rm -f -- "$SELF"
 #       fi' EXIT
 
-# Installeert: reflector, rsync, yay (from source)
+# Installeert: reflector, rsync
 # Installeert micro-code updates
 # Zet locale
 # Installeert basis packages
 # Installeert KDE
 
-YAY_REPO="https://aur.archlinux.org/yay.git"
 PACCONF="/etc/pacman.conf"
 BACKUP="/etc/pacman.conf.$(date +%Y%m%d-%H%M%S).bak"
 need_locale_en="en_US.UTF-8"
@@ -38,23 +37,6 @@ pacman -Syu --noconfirm
 
 log "Benodigdheden installeren (git, base-devel, go, reflector, rsync)…"
 pacman -S --needed --noconfirm git base-devel go reflector rsync
-
-# --- yay (from source) ---
-if ! command -v yay >/dev/null 2>&1; then
-  log "yay niet gevonden; bouwen uit AUR (from source)…"
-  TMPDIR="$(mktemp -d)"
-  chown "$BUILD_USER:$BUILD_USER" "$TMPDIR"
-  sudo -u "$BUILD_USER" bash -lc "
-    set -e
-    cd '$TMPDIR'
-    git clone '$YAY_REPO'
-    cd yay
-    makepkg -si --noconfirm
-  "
-  rm -rf "$TMPDIR"
-else
-  log "yay is al geïnstalleerd: $(yay --version | head -n1)"
-fi
 
 # --- mirrorlist optimaliseren ---
 log "Mirrorlist optimaliseren met reflector…"
