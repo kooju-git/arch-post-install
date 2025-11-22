@@ -1,19 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- self-delete als het script succesvol eindigt ---
-# SELF="${BASH_SOURCE[0]:-$0}"
-# trap 'status=$?;
-#       if (( status == 0 )) && [[ -f "$SELF" && -w "$SELF" && -O "$SELF" ]]; then
-#         rm -f -- "$SELF"
-#       fi' EXIT
-
-# Installeert: reflector, rsync
-# Installeert micro-code updates
-# Zet locale
-# Installeert basis packages
-# Installeert KDE
-
 PACCONF="/etc/pacman.conf"
 BACKUP="/etc/pacman.conf.$(date +%Y%m%d-%H%M%S).bak"
 need_locale_en="en_US.UTF-8"
@@ -54,7 +41,7 @@ log "Systeem opnieuw synchroniseren na pacman.conf/mirrorlist wijzigingen…"
 pacman -Syu --noconfirm
 
 # --- microcode updates ---
-pacman -S intel-ucode --noconfirm
+pacman -S --needed --noconfirm intel-ucode
 grub-mkconfig -o /boot/grub/grub.cfg
 
 # 1) Zorg dat locales gegenereerd worden
@@ -79,14 +66,30 @@ localectl set-locale \
   LC_CTYPE=${need_locale_be}
 
 # --- basis packages ---
-pacman -S --needed --noconfirm numlockx vi
-
-# --- kde ---
-pacman -S --needed --noconfirm plasma-meta kde-applications
+pacman -S --needed plasma-desktop plasma-wayland-session kwayland-integration breeze sddm sddm-kcm
+# --- systeem tools ---
+pacman -S --needed kde-system-settings dolphin konsole networkmanager plasma-nm
+# --- desktop tools ---
+pacman -S --needed kfind gwenview kate ark print-manager
+# --- fonts ---
+pacman -S --needed nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono
+# --- other handy tools ---
+pacman -S --needed numlockx vi nano less ntfs-3g dosfstools nfs-utils usbutils bash-completion 
+pacman -S --needed dolphin-plugins ffmpegthumbs kdegraphics-thumbnailers kimageformats qt6-imageformats
+# --- office tools ---
+pacman -S --needed libreoffice-fresh
+# --- flatpack support ---
+pacman -S --needed flatpak
+pacman -S --needed plasma-discover packagekit-flatpak
+# --- user specific tools ---
+pacman -S --needed gparted alacritty stow fastfetch veracrypt syncthing mpv
 
 sudo mkdir -p /etc/sddm.conf.d
 printf "[General]\nNumlock=on\n" | sudo tee /etc/sddm.conf.d/10-numlock.conf
+
+# --- systeemdiensten inschakelen
 systemctl enable sddm.service
+systemctl enable NetworkManager.service
 
 echo
 log "Klaar. Gelieve te rebooten."
