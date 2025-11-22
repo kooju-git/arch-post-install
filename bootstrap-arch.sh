@@ -220,7 +220,7 @@ pacman -S --needed --noconfirm kde-system-settings dolphin konsole networkmanage
 pacman -S --needed --noconfirm kfind gwenview kate ark print-manager libreoffice-fresh mpv alacritty
 
 # Fonts
-pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono
+pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono ttf-jetbrains-mono-nerd gnu-free-fonts noto-fonts ttf-jetbrains-mono
 
 # Utilities
 pacman -S --needed --noconfirm numlockx vi nano less ntfs-3g dosfstools nfs-utils usbutils bash-completion \
