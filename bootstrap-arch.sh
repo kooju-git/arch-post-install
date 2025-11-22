@@ -1,95 +1,276 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PACCONF="/etc/pacman.conf"
-BACKUP="/etc/pacman.conf.$(date +%Y%m%d-%H%M%S).bak"
-need_locale_en="en_US.UTF-8"
-need_locale_be="nl_BE.UTF-8"
+# ==============================================================================
+# ARCH LINUX BOOTSTRAP SCRIPT
+# ==============================================================================
+# Purpose:  Full system setup after a fresh Arch install.
+# Features: Configures Pacman (Multilib, Chaotic-AUR, ParallelDownloads),
+#           updates mirrors, installs Yay, installs KDE Plasma stack,
+#           sets up locales and bootloader.
+# Security: Generic script. No personal data or hardcoded credentials.
+# Usage:    Run with sudo: sudo ./bootstrap_combined.sh
+# ==============================================================================
 
+# --- Configuration Variables ---
+PACCONF="/etc/pacman.conf"
+PACCONF_BAK="/etc/pacman.conf.$(date +%Y%m%d-%H%M%S).bak"
+MIRRORLIST="/etc/pacman.d/mirrorlist"
+
+# Chaotic AUR settings
+CHAOTIC_KEY="3056513887B78AEB"
+CHAOTIC_KEYRING_URL="https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst"
+CHAOTIC_MIRRORLIST_URL="https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst"
+
+# Locale settings
+LOCALE_EN="en_US.UTF-8"
+LOCALE_BE="nl_BE.UTF-8"
+
+# --- Helper Functions ---
 log()  { printf '\033[1;32m[info]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m[err]\033[0m %s\n' "$*" >&2; }
 
-# --- sudo & build user ---
-if [[ $EUID -ne 0 && -z "${SUDO_USER:-}" ]]; then err "Run met: sudo $0"; exit 1; fi
-if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
-  BUILD_USER="$SUDO_USER"
-else
-  err "Geen niet-root gebruiker gedetecteerd (SUDO_USER). Start met: sudo $0"; exit 1
+# ==============================================================================
+# 1. PRE-FLIGHT CHECKS
+# ==============================================================================
+
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+    err "Please run this script with sudo."
+    exit 1
 fi
 
-# --- updates & basis ---
-log "Pacman databases updaten en systeem bijwerken…"
-pacman -Syu --noconfirm
+# Identify the actual user (for building yay)
+if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+    BUILD_USER="$SUDO_USER"
+    log "Build user detected: $BUILD_USER"
+else
+    err "No non-root user detected. Do not run this from a root shell, use 'sudo ./script.sh'."
+    exit 1
+fi
 
-log "Benodigdheden installeren (git, base-devel, go, reflector, rsync)…"
+# ==============================================================================
+# 2. NETWORK & MIRRORS
+# ==============================================================================
+
+log "Updating Pacman database..."
+pacman -Sy --noconfirm
+
+log "Installing base dependencies (git, base-devel, reflector)..."
 pacman -S --needed --noconfirm git base-devel go reflector rsync
 
-# --- mirrorlist optimaliseren ---
-log "Mirrorlist optimaliseren met reflector…"
-if ! reflector --latest 10 --sort rate --fastest 5 --save /etc/pacman.d/mirrorlist 2>/dev/null; then
-  warn "reflector met --fastest faalde; val terug op sort-by-rate"
-  reflector --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
+if command -v reflector >/dev/null 2>&1; then
+    log "Optimizing mirrorlist (Fastest 5, HTTPS, sorted by rate)..."
+    # Backup existing mirrorlist if not already backed up today
+    [[ ! -f "${MIRRORLIST}.bak" ]] && cp "$MIRRORLIST" "${MIRRORLIST}.bak"
+    
+    reflector --protocol https --latest 20 --sort rate --fastest 5 --save "$MIRRORLIST"
+else
+    warn "Reflector not found. Skipping mirror optimization."
 fi
 
-# --- pacman.conf backup ---
-log "Backup van pacman.conf -> $BACKUP"
-cp -a "$PACCONF" "$BACKUP"
+# ==============================================================================
+# 3. PACMAN CONFIGURATION (Parallel Downloads, Multilib, Chaotic)
+# ==============================================================================
+log "Optimizing pacman.conf..."
 
-# --- resync ---
-log "Systeem opnieuw synchroniseren na pacman.conf/mirrorlist wijzigingen…"
-pacman -Syu --noconfirm
+# Backup pacman.conf
+cp -a "$PACCONF" "$PACCONF_BAK"
 
-# --- microcode updates ---
+# Create temp file for the new config
+tmp_conf="$(mktemp)"
+
+# Clean comments and empty lines first
+sed -E -e 's/^[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$PACCONF" > "$tmp_conf"
+
+# Use awk to enforce: Color, ParallelDownloads, ILoveCandy, and [multilib]
+# This complex block ensures idempotency (won't add duplicates if run twice)
+awk '
+  BEGIN{inopt=0; haveColor=0; haveCandy=0; havePar=0; in_m=0; done_m=0}
+  
+  # Handle [options] block
+  /^\[options\]/ {
+    print; inopt=1; next
+  }
+  
+  # Handle [multilib] block detection
+  /^\[multilib\]/ {
+    if(!done_m){ print "[multilib]"; print "Include = /etc/pacman.d/mirrorlist"; done_m=1 }
+    in_m=1; next
+  }
+  
+  # Detect new sections (resets flags)
+  /^\[.*\]/ {
+    if(inopt){
+       if(!haveColor) print "Color";
+       if(!havePar)   print "ParallelDownloads = 5";
+       if(!haveCandy) print "ILoveCandy";
+    }
+    inopt=0; in_m=0;
+    print; next
+  }
+  
+  # Process lines inside [options]
+  {
+    if(inopt){
+      if($0 ~ /Color/){ if(!haveColor){print "Color"; haveColor=1}; next }
+      if($0 ~ /ILoveCandy/){ if(!haveCandy){print "ILoveCandy"; haveCandy=1}; next }
+      if($0 ~ /ParallelDownloads/){ print "ParallelDownloads = 5"; havePar=1; next }
+    }
+    # Skip existing multilib lines as we re-added the whole block properly above
+    if(in_m) next;
+    
+    print
+  }
+  
+  # End of file checks
+  END{
+    if(inopt){
+      if(!haveColor) print "Color";
+      if(!havePar)   print "ParallelDownloads = 5";
+      if(!haveCandy) print "ILoveCandy";
+    }
+    if(!done_m){
+      print ""; print "[multilib]"; print "Include = /etc/pacman.d/mirrorlist";
+    }
+  }
+' "$tmp_conf" > "${tmp_conf}.2" && mv "${tmp_conf}.2" "$tmp_conf"
+
+# Apply the new config immediately so subsequent installs use it
+install -m 0644 -o root -g root "$tmp_conf" "$PACCONF"
+rm -f "$tmp_conf"
+
+# Sync to enable Multilib
+log "Syncing databases (Multilib enabled)..."
+pacman -Syy --noconfirm
+
+# ==============================================================================
+# 4. CHAOTIC AUR SETUP
+# ==============================================================================
+log "Setting up Chaotic-AUR..."
+
+# 1. Keys
+pacman-key --init
+if ! pacman-key --list-keys "$CHAOTIC_KEY" >/dev/null 2>&1; then
+    log "Importing and signing Chaotic-AUR key..."
+    pacman-key --recv-key "$CHAOTIC_KEY" --keyserver keyserver.ubuntu.com
+    pacman-key --lsign-key "$CHAOTIC_KEY"
+fi
+
+# 2. Install Keyring & Mirrorlist packages manually first
+if ! pacman -Qi chaotic-keyring >/dev/null 2>&1; then
+    pacman -U --noconfirm "$CHAOTIC_KEYRING_URL" "$CHAOTIC_MIRRORLIST_URL" || warn "Failed to install Chaotic keyring/mirrorlist from URL."
+fi
+
+# 3. Append [chaotic-aur] to pacman.conf if not present
+if ! grep -q "^\[chaotic-aur\]" "$PACCONF"; then
+    log "Adding Chaotic-AUR to pacman.conf..."
+    cat <<EOF >> "$PACCONF"
+
+[chaotic-aur]
+Include = /etc/pacman.d/chaotic-mirrorlist
+EOF
+fi
+
+# 4. Final Sync
+pacman -Syy --noconfirm
+
+# ==============================================================================
+# 5. INSTALL YAY (AUR HELPER)
+# ==============================================================================
+
+if ! command -v yay >/dev/null 2>&1; then
+    log "Yay not found. Building from source..."
+    TMPDIR="$(mktemp -d)"
+    chown "$BUILD_USER:$BUILD_USER" "$TMPDIR"
+    
+    # Build as non-root user
+    sudo -u "$BUILD_USER" bash -lc "
+      set -e
+      cd '$TMPDIR'
+      git clone 'https://aur.archlinux.org/yay.git'
+      cd yay
+      makepkg -si --noconfirm
+    "
+    rm -rf "$TMPDIR"
+else
+    log "Yay is already installed."
+fi
+
+# ==============================================================================
+# 6. SOFTWARE INSTALLATION
+# ==============================================================================
+log "Installing software packages..."
+
+# Microcode & Bootloader
 pacman -S --needed --noconfirm intel-ucode
+# Ensure directory exists before config generation
+mkdir -p /boot/grub
 grub-mkconfig -o /boot/grub/grub.cfg
 
-# 1) Zorg dat locales gegenereerd worden
-sed -i -E "s/^#\s*(${need_locale_en//./\\.}\s+UTF-8)/\1/" /etc/locale.gen
-sed -i -E "s/^#\s*(${need_locale_be//./\\.}\s+UTF-8)/\1/" /etc/locale.gen
+# Desktop Environment (KDE Plasma)
+pacman -S --needed --noconfirm plasma-desktop plasma-wayland-session kwayland-integration breeze sddm sddm-kcm
+
+# System Tools
+pacman -S --needed --noconfirm kde-system-settings dolphin konsole networkmanager plasma-nm \
+    dolphin-plugins ffmpegthumbs kdegraphics-thumbnailers kimageformats qt6-imageformats
+
+# Desktop Apps
+pacman -S --needed --noconfirm kfind gwenview kate ark print-manager libreoffice-fresh mpv alacritty
+
+# Fonts
+pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono
+
+# Utilities
+pacman -S --needed --noconfirm numlockx vi nano less ntfs-3g dosfstools nfs-utils usbutils bash-completion \
+    gparted stow fastfetch veracrypt syncthing
+
+# Flatpak
+pacman -S --needed --noconfirm flatpak plasma-discover packagekit-flatpak
+
+# ==============================================================================
+# 7. SYSTEM CONFIGURATION
+# ==============================================================================
+
+# Locales
+log "Configuring locales..."
+# Uncomment required locales
+sed -i -E "s/^#\s*(${LOCALE_EN//./\\.}\s+UTF-8)/\1/" /etc/locale.gen
+sed -i -E "s/^#\s*(${LOCALE_BE//./\\.}\s+UTF-8)/\1/" /etc/locale.gen
 locale-gen
 
-# 2) Schrijf systeemlocale: Engels voor taal/berichten, Belgisch-Nederlands voor alles anders
+# Set System Locale (English messages, Belgian formats)
 localectl set-locale \
-  LANG=${need_locale_en} \
-  LC_MESSAGES=${need_locale_en} \
-  LC_NUMERIC=${need_locale_be} \
-  LC_TIME=${need_locale_be} \
-  LC_MONETARY=${need_locale_be} \
-  LC_PAPER=${need_locale_be} \
-  LC_NAME=${need_locale_be} \
-  LC_ADDRESS=${need_locale_be} \
-  LC_TELEPHONE=${need_locale_be} \
-  LC_MEASUREMENT=${need_locale_be} \
-  LC_IDENTIFICATION=${need_locale_be} \
-  LC_COLLATE=${need_locale_be} \
-  LC_CTYPE=${need_locale_be}
+  LANG=${LOCALE_EN} \
+  LC_MESSAGES=${LOCALE_EN} \
+  LC_NUMERIC=${LOCALE_BE} \
+  LC_TIME=${LOCALE_BE} \
+  LC_MONETARY=${LOCALE_BE} \
+  LC_PAPER=${LOCALE_BE} \
+  LC_NAME=${LOCALE_BE} \
+  LC_ADDRESS=${LOCALE_BE} \
+  LC_TELEPHONE=${LOCALE_BE} \
+  LC_MEASUREMENT=${LOCALE_BE} \
+  LC_IDENTIFICATION=${LOCALE_BE} \
+  LC_COLLATE=${LOCALE_BE} \
+  LC_CTYPE=${LOCALE_BE}
 
-# --- basis packages ---
-pacman -S --needed plasma-desktop plasma-wayland-session kwayland-integration breeze sddm sddm-kcm
-# --- systeem tools ---
-pacman -S --needed kde-system-settings dolphin konsole networkmanager plasma-nm
-# --- desktop tools ---
-pacman -S --needed kfind gwenview kate ark print-manager
-# --- fonts ---
-pacman -S --needed nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono
-# --- other handy tools ---
-pacman -S --needed numlockx vi nano less ntfs-3g dosfstools nfs-utils usbutils bash-completion 
-pacman -S --needed dolphin-plugins ffmpegthumbs kdegraphics-thumbnailers kimageformats qt6-imageformats
-# --- office tools ---
-pacman -S --needed libreoffice-fresh
-# --- flatpack support ---
-pacman -S --needed flatpak
-pacman -S --needed plasma-discover packagekit-flatpak
-# --- user specific tools ---
-pacman -S --needed gparted alacritty stow fastfetch veracrypt syncthing mpv
+# SDDM Numlock Configuration
+if [[ ! -f /etc/sddm.conf.d/10-numlock.conf ]]; then
+    mkdir -p /etc/sddm.conf.d
+    printf "[General]\nNumlock=on\n" > /etc/sddm.conf.d/10-numlock.conf
+fi
 
-sudo mkdir -p /etc/sddm.conf.d
-printf "[General]\nNumlock=on\n" | sudo tee /etc/sddm.conf.d/10-numlock.conf
-
-# --- systeemdiensten inschakelen
+# Enable Services
+log "Enabling system services..."
 systemctl enable sddm.service
 systemctl enable NetworkManager.service
 
-echo
-log "Klaar. Gelieve te rebooten."
+# ==============================================================================
+# 8. FINISH
+# ==============================================================================
+
+echo ""
+log "Bootstrap complete!"
+log "A reboot is recommended to apply all changes."
