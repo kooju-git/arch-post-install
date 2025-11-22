@@ -7,7 +7,7 @@ set -euo pipefail
 # Purpose:  Full system setup after a fresh Arch install.
 # Features: Configures Pacman (Multilib, Chaotic-AUR, ParallelDownloads),
 #           updates mirrors, installs Yay, installs KDE Plasma stack,
-#           sets up locales and bootloader.
+#           installs specific Chaotic-AUR apps, sets up locales/bootloader.
 # Security: Generic script. No personal data or hardcoded credentials.
 # Usage:    Run with sudo: sudo ./bootstrap_combined.sh
 # ==============================================================================
@@ -44,7 +44,7 @@ fi
 # Identify the actual user (for building yay)
 if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
     BUILD_USER="$SUDO_USER"
-    log "Build user detected: $BUILD_USER"
+    log "User detected: $BUILD_USER"
 else
     err "No non-root user detected. Do not run this from a root shell, use 'sudo ./script.sh'."
     exit 1
@@ -85,59 +85,34 @@ tmp_conf="$(mktemp)"
 sed -E -e 's/^[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$PACCONF" > "$tmp_conf"
 
 # Use awk to enforce: Color, ParallelDownloads, ILoveCandy, and [multilib]
-# This complex block ensures idempotency (won't add duplicates if run twice)
 awk '
   BEGIN{inopt=0; haveColor=0; haveCandy=0; havePar=0; in_m=0; done_m=0}
-  
-  # Handle [options] block
-  /^\[options\]/ {
-    print; inopt=1; next
-  }
-  
-  # Handle [multilib] block detection
-  /^\[multilib\]/ {
-    if(!done_m){ print "[multilib]"; print "Include = /etc/pacman.d/mirrorlist"; done_m=1 }
-    in_m=1; next
-  }
-  
-  # Detect new sections (resets flags)
+  /^\[options\]/ { print; inopt=1; next }
+  /^\[multilib\]/ { if(!done_m){ print "[multilib]"; print "Include = /etc/pacman.d/mirrorlist"; done_m=1 } in_m=1; next }
   /^\[.*\]/ {
     if(inopt){
        if(!haveColor) print "Color";
        if(!havePar)   print "ParallelDownloads = 5";
        if(!haveCandy) print "ILoveCandy";
     }
-    inopt=0; in_m=0;
-    print; next
+    inopt=0; in_m=0; print; next
   }
-  
-  # Process lines inside [options]
   {
     if(inopt){
       if($0 ~ /Color/){ if(!haveColor){print "Color"; haveColor=1}; next }
       if($0 ~ /ILoveCandy/){ if(!haveCandy){print "ILoveCandy"; haveCandy=1}; next }
       if($0 ~ /ParallelDownloads/){ print "ParallelDownloads = 5"; havePar=1; next }
     }
-    # Skip existing multilib lines as we re-added the whole block properly above
     if(in_m) next;
-    
     print
   }
-  
-  # End of file checks
   END{
-    if(inopt){
-      if(!haveColor) print "Color";
-      if(!havePar)   print "ParallelDownloads = 5";
-      if(!haveCandy) print "ILoveCandy";
-    }
-    if(!done_m){
-      print ""; print "[multilib]"; print "Include = /etc/pacman.d/mirrorlist";
-    }
+    if(inopt){ if(!haveColor) print "Color"; if(!havePar) print "ParallelDownloads = 5"; if(!haveCandy) print "ILoveCandy"; }
+    if(!done_m){ print ""; print "[multilib]"; print "Include = /etc/pacman.d/mirrorlist"; }
   }
 ' "$tmp_conf" > "${tmp_conf}.2" && mv "${tmp_conf}.2" "$tmp_conf"
 
-# Apply the new config immediately so subsequent installs use it
+# Apply the new config
 install -m 0644 -o root -g root "$tmp_conf" "$PACCONF"
 rm -f "$tmp_conf"
 
@@ -158,9 +133,9 @@ if ! pacman-key --list-keys "$CHAOTIC_KEY" >/dev/null 2>&1; then
     pacman-key --lsign-key "$CHAOTIC_KEY"
 fi
 
-# 2. Install Keyring & Mirrorlist packages manually first
+# 2. Install Keyring & Mirrorlist
 if ! pacman -Qi chaotic-keyring >/dev/null 2>&1; then
-    pacman -U --noconfirm "$CHAOTIC_KEYRING_URL" "$CHAOTIC_MIRRORLIST_URL" || warn "Failed to install Chaotic keyring/mirrorlist from URL."
+    pacman -U --noconfirm "$CHAOTIC_KEYRING_URL" "$CHAOTIC_MIRRORLIST_URL" || warn "Failed to install Chaotic keyring from URL."
 fi
 
 # 3. Append [chaotic-aur] to pacman.conf if not present
@@ -173,7 +148,6 @@ Include = /etc/pacman.d/chaotic-mirrorlist
 EOF
 fi
 
-# 4. Final Sync
 pacman -Syy --noconfirm
 
 # ==============================================================================
@@ -185,7 +159,6 @@ if ! command -v yay >/dev/null 2>&1; then
     TMPDIR="$(mktemp -d)"
     chown "$BUILD_USER:$BUILD_USER" "$TMPDIR"
     
-    # Build as non-root user
     sudo -u "$BUILD_USER" bash -lc "
       set -e
       cd '$TMPDIR'
@@ -205,7 +178,6 @@ log "Installing software packages..."
 
 # Microcode & Bootloader
 pacman -S --needed --noconfirm intel-ucode
-# Ensure directory exists before config generation
 mkdir -p /boot/grub
 grub-mkconfig -o /boot/grub/grub.cfg
 
@@ -220,7 +192,7 @@ pacman -S --needed --noconfirm kde-system-settings dolphin konsole networkmanage
 pacman -S --needed --noconfirm kfind gwenview kate ark print-manager libreoffice-fresh mpv alacritty
 
 # Fonts
-pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono ttf-jetbrains-mono-nerd gnu-free-fonts noto-fonts ttf-jetbrains-mono
+pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono
 
 # Utilities
 pacman -S --needed --noconfirm numlockx vi nano less ntfs-3g dosfstools nfs-utils usbutils bash-completion \
@@ -229,18 +201,24 @@ pacman -S --needed --noconfirm numlockx vi nano less ntfs-3g dosfstools nfs-util
 # Flatpak
 pacman -S --needed --noconfirm flatpak plasma-discover packagekit-flatpak
 
+# Chaotic AUR Specific Apps
+log "Installing Chaotic-AUR applications..."
+pacman -S --needed --noconfirm \
+    chaotic-aur/preload \
+    chaotic-aur/zen-browser-bin \
+    chaotic-aur/freetube-bin \
+    chaotic-aur/synology-drive
+
 # ==============================================================================
 # 7. SYSTEM CONFIGURATION
 # ==============================================================================
 
 # Locales
 log "Configuring locales..."
-# Uncomment required locales
 sed -i -E "s/^#\s*(${LOCALE_EN//./\\.}\s+UTF-8)/\1/" /etc/locale.gen
 sed -i -E "s/^#\s*(${LOCALE_BE//./\\.}\s+UTF-8)/\1/" /etc/locale.gen
 locale-gen
 
-# Set System Locale (English messages, Belgian formats)
 localectl set-locale \
   LANG=${LOCALE_EN} \
   LC_MESSAGES=${LOCALE_EN} \
@@ -256,7 +234,7 @@ localectl set-locale \
   LC_COLLATE=${LOCALE_BE} \
   LC_CTYPE=${LOCALE_BE}
 
-# SDDM Numlock Configuration
+# SDDM Numlock
 if [[ ! -f /etc/sddm.conf.d/10-numlock.conf ]]; then
     mkdir -p /etc/sddm.conf.d
     printf "[General]\nNumlock=on\n" > /etc/sddm.conf.d/10-numlock.conf
@@ -266,6 +244,10 @@ fi
 log "Enabling system services..."
 systemctl enable sddm.service
 systemctl enable NetworkManager.service
+
+# Enable Preload (daemon)
+log "Enabling Preload daemon..."
+systemctl enable preload.service
 
 # ==============================================================================
 # 8. FINISH
