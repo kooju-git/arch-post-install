@@ -188,8 +188,11 @@ pacman -S --needed --noconfirm plasma-desktop plasma-wayland-protocols kwayland-
 pacman -S --needed --noconfirm dolphin konsole networkmanager plasma-nm kde-system-meta \
     dolphin-plugins ffmpegthumbs kdegraphics-thumbnailers kimageformats qt6-imageformats
 
+# Audio drivers
+pacman -S --needed --noconfirm sof-firmware alsa-ucm-conf pipewire-pulse wireplumber plasma-pa
+
 # Desktop Apps
-pacman -S --needed --noconfirm kfind gwenview kate ark print-manager libreoffice-fresh mpv alacritty
+pacman -S --needed --noconfirm kfind gwenview kate ark print-manager libreoffice-fresh mpv alacritty powerdevil kscreen
 
 # Fonts
 pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono
