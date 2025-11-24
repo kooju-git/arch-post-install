@@ -185,30 +185,28 @@ grub-mkconfig -o /boot/grub/grub.cfg
 pacman -S --needed --noconfirm plasma-desktop plasma-wayland-protocols kwayland-integration breeze sddm sddm-kcm plasma-workspace-wallpapers
 
 # System Tools
-pacman -S --needed --noconfirm dolphin konsole networkmanager plasma-nm kde-system-meta \
+pacman -S --needed --noconfirm dolphin alacritty networkmanager plasma-nm kde-system-meta \
     dolphin-plugins ffmpegthumbs kdegraphics-thumbnailers kimageformats qt6-imageformats
 
 # Audio drivers
 pacman -S --needed --noconfirm sof-firmware alsa-ucm-conf pipewire-pulse wireplumber plasma-pa
 
 # Desktop Apps
-pacman -S --needed --noconfirm kfind gwenview kate ark print-manager libreoffice-fresh mpv alacritty powerdevil kscreen
+pacman -S --needed --noconfirm kfind gwenview kate ark print-manager mpv powerdevil kscreen
 
 # Fonts
 pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono
 
 # Utilities
 pacman -S --needed --noconfirm numlockx vi nano less ntfs-3g dosfstools nfs-utils usbutils bash-completion \
-    stow fastfetch veracrypt syncthing
+    stow fastfetch veracrypt
 
 # Flatpak
 pacman -S --needed --noconfirm flatpak discover
 
 # Chaotic AUR Specific Apps
 log "Installing Chaotic-AUR applications..."
-pacman -S --needed --noconfirm \
-    chaotic-aur/preload \
-    chaotic-aur/synology-drive
+pacman -S --needed --noconfirm chaotic-aur/preload
 
 # ==============================================================================
 # 7. SYSTEM CONFIGURATION
