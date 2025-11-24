@@ -182,10 +182,10 @@ mkdir -p /boot/grub
 grub-mkconfig -o /boot/grub/grub.cfg
 
 # Desktop Environment (KDE Plasma)
-pacman -S --needed --noconfirm plasma-desktop plasma-wayland-session kwayland-integration breeze sddm sddm-kcm
+pacman -S --needed --noconfirm plasma-desktop plasma-wayland-protocols kwayland-integration breeze sddm sddm-kcm plasma-workspace-wallpapers
 
 # System Tools
-pacman -S --needed --noconfirm kde-system-settings dolphin konsole networkmanager plasma-nm \
+pacman -S --needed --noconfirm dolphin konsole networkmanager plasma-nm kde-system-meta \
     dolphin-plugins ffmpegthumbs kdegraphics-thumbnailers kimageformats qt6-imageformats
 
 # Desktop Apps
@@ -196,17 +196,15 @@ pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono gnu-free-fonts noto-fon
 
 # Utilities
 pacman -S --needed --noconfirm numlockx vi nano less ntfs-3g dosfstools nfs-utils usbutils bash-completion \
-    gparted stow fastfetch veracrypt syncthing
+    stow fastfetch veracrypt syncthing
 
 # Flatpak
-pacman -S --needed --noconfirm flatpak plasma-discover packagekit-flatpak
+pacman -S --needed --noconfirm flatpak discover
 
 # Chaotic AUR Specific Apps
 log "Installing Chaotic-AUR applications..."
 pacman -S --needed --noconfirm \
     chaotic-aur/preload \
-    chaotic-aur/zen-browser-bin \
-    chaotic-aur/freetube-bin \
     chaotic-aur/synology-drive
 
 # ==============================================================================
