@@ -195,7 +195,7 @@ pacman -S --needed --noconfirm sof-firmware alsa-ucm-conf pipewire-pulse wireplu
 pacman -S --needed --noconfirm kfind gwenview kate ark print-manager mpv powerdevil kscreen
 
 # Fonts
-pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono
+pacman -S --needed --noconfirm nerd-fonts-noto-sans-mono gnu-free-fonts noto-fonts ttf-jetbrains-mono ttf-jetbrains-mono-nerd
 
 # Utilities
 pacman -S --needed --noconfirm numlockx vi nano less ntfs-3g dosfstools nfs-utils usbutils bash-completion \
